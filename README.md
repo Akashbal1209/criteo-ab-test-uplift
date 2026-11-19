@@ -1,6 +1,6 @@
-# Did the ads bring anyone new? Causal analysis and uplift modeling on Criteo data
+# Did the ads bring anyone new? A/B test analysis and uplift modeling on Criteo data
 
-An end-to-end incrementality study on the [Criteo uplift dataset](https://huggingface.co/datasets/criteo/criteo-uplift) (13.98 million users, randomized 85:15). It answers three business questions:
+An end-to-end analysis of a randomized **A/B test** on the [Criteo uplift dataset](https://huggingface.co/datasets/criteo/criteo-uplift) (13.98 million users, 85% could be shown ads, 15% held out as a control group). It answers three business questions:
 
 1. **Do the ads cause extra website visits, or would those people have come anyway?**
 2. **Who responds to the ads?**
