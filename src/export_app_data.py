@@ -22,8 +22,12 @@ OUT = PROJECT_ROOT / "app" / "public" / "data" / "app_data.json"
 MODELS = PROJECT_ROOT / "models"
 
 
-def r(x, nd=6):
-    """Round numpy/python numbers for compact JSON."""
+def r(x, nd=8):
+    """Round numpy/python numbers for compact JSON.
+
+    8 decimals keeps rates exact enough that the app's 2-decimal display matches
+    the notebooks (e.g. 0.04885008 shows as 4.89%, not 4.88%).
+    """
     return None if x is None else round(float(x), nd)
 
 
@@ -65,7 +69,8 @@ def model_summary(scores: pd.DataFrame) -> dict:
     out = {}
     for key, col in [("s_learner", "score_s_learner"), ("activity", "score_activity")]:
         m = uplift_metrics(y, scores[col].values, t)
-        b = bootstrap_metric(y, scores[col].values, t, qini_auc_score, n_boot=100)
+        # same settings as notebook 07 (200 resamples, seed 42) so the app and README agree
+        b = bootstrap_metric(y, scores[col].values, t, qini_auc_score, n_boot=200)
         out[key] = {"qini": r(m["qini_auc"], 4), "qini_ci": [r(b["ci_low"], 4), r(b["ci_high"], 4)],
                     "uplift_at_10": r(m["uplift_at_10"]), "uplift_at_20": r(m["uplift_at_20"])}
     return out
