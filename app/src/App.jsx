@@ -48,7 +48,7 @@ export default function App() {
         <Hero e={e} />
         <Kpis e={e} profit={derived.result.profit} price={price} />
         <div className="main">
-          <TargetChart curves={data.curves} models={data.models} selX={derived.pol.x} />
+          <TargetChart curves={data.curves} models={data.models} selX={derived.pol.x} price={price} assumptions={a} />
           <Decision prices={a.price_options} price={price} setPrice={setPrice} pol={derived.pol}
             result={derived.result} best={derived.best} visitValue={a.visit_value} />
         </div>

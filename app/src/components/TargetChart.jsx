@@ -1,84 +1,206 @@
-// "Who to target": share of extra visits captured when the most responsive people see ads first.
-import { useEffect, useRef } from "react";
+// "Who to target" chart with two views:
+//  - Extra visits: share of all extra visits captured when the most responsive people see ads first
+//  - Profit: profit per 1M people for each targeting share at the selected ad price (moves with the price)
+import { useEffect, useRef, useState } from "react";
 import Swap from "./Swap.jsx";
-import { capturedShare } from "../lib/metrics.js";
+import { capturedShare, fmtPrice, fmtRupeesK, profitAt } from "../lib/metrics.js";
 import { useTech } from "../tech.js";
 
-export default function TargetChart({ curves, models, selX }) {
+const N = 100;
+
+/** A round tick spacing (1, 2 or 5 × 10^k) that gives about three grid lines, never below ₹1k. */
+function niceStep(span) {
+  const raw = span / 3;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  return Math.max(1000, (norm > 5 ? 10 : norm > 2 ? 5 : norm > 1 ? 2 : 1) * mag);
+}
+
+export default function TargetChart({ curves, models, selX, price, assumptions }) {
   const tech = useTech();
+  const [view, setView] = useState("visits");
   const ref = useRef(null);
-  const state = useRef({ hov: null, dp: 0, selX, tech });
-  state.current.selX = selX;
-  state.current.tech = tech;
+  const state = useRef({ hov: null, dp: 0, selX, tech, view, price, disp: null, range: null });
+  const S0 = state.current;
+  if (S0.view !== view) { S0.dp = 0; S0.disp = null; S0.range = null; }
+  S0.selX = selX; S0.tech = tech; S0.view = view; S0.price = price;
 
   useEffect(() => {
     const c = ref.current, g = c.getContext("2d");
     const D = Math.min(window.devicePixelRatio || 1, 2);
     const S = state.current;
-    const model = (x) => capturedShare(curves.s_learner, x);
-    const act = (x) => capturedShare(curves.activity, x);
-    const at20 = Math.round(model(0.2) * 100);
+    const visitsModel = (x) => capturedShare(curves.s_learner, x);
+    const visitsAct = (x) => capturedShare(curves.activity, x);
+    const at20 = Math.round(visitsModel(0.2) * 100);
     let raf;
     const fit = () => { const r = c.getBoundingClientRect(); c.width = r.width * D; c.height = r.height * D; };
     const ro = new ResizeObserver(fit); ro.observe(c); fit();
-    const move = (e) => { const r = c.getBoundingClientRect(); S.hov = Math.max(0, Math.min(1, (e.clientX - r.left - 34) / (r.width - 46))); };
+    const move = (e) => { const r = c.getBoundingClientRect(); S.hov = Math.max(0, Math.min(1, (e.clientX - r.left - 46) / (r.width - 58))); };
     const leave = () => { S.hov = null; };
     c.addEventListener("pointermove", move); c.addEventListener("pointerleave", leave);
-    const draw = () => {
-      const w = c.width, h = c.height, L = 34 * D, R = 12 * D, T = 10 * D, B = 22 * D;
-      const sx = (v) => L + v * (w - L - R), sy = (v) => T + (1 - v) * (h - T - B);
-      g.clearRect(0, 0, w, h);
-      g.font = `${10.5 * D}px Inter, sans-serif`; g.lineWidth = D;
-      [0, 0.5, 1].forEach((v) => {
-        g.strokeStyle = "#1c1d20"; g.beginPath(); g.moveTo(L, sy(v)); g.lineTo(w - R, sy(v)); g.stroke();
-        g.fillStyle = "#5d626b"; g.textAlign = "right"; g.fillText(`${v * 100}%`, L - 6 * D, sy(v) + 3.5 * D);
-        g.textAlign = v === 0 ? "left" : v === 1 ? "right" : "center";
-        g.fillText(`${v * 100}%${v === 1 ? " of people" : ""}`, sx(v), h - 5 * D);
-      });
-      S.dp = Math.min(1, S.dp + 0.025);
-      const n = Math.max(1, Math.floor(100 * S.dp));
-      const pts = (f) => { const a = [[sx(0), sy(0)]]; for (let i = 1; i <= n; i++) a.push([sx(i / 100), sy(f(i / 100))]); return a; };
-      const mp = pts(model);
-      const gr = g.createLinearGradient(0, T, 0, h - B);
-      gr.addColorStop(0, "rgba(124,131,255,.28)"); gr.addColorStop(1, "rgba(124,131,255,0)");
-      g.fillStyle = gr; g.beginPath(); mp.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
-      g.lineTo(sx(n / 100), sy(0)); g.closePath(); g.fill();
-      g.setLineDash([4 * D, 4 * D]); g.strokeStyle = "#33363c"; g.lineWidth = 1.2 * D;
-      g.beginPath(); g.moveTo(sx(0), sy(0)); g.lineTo(sx(S.dp), sy(S.dp)); g.stroke(); g.setLineDash([]);
-      g.strokeStyle = "#4a4e57"; g.lineWidth = 1.3 * D; g.beginPath(); pts(act).forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke();
-      g.strokeStyle = "#a5a9ff"; g.lineWidth = 2.2 * D; g.beginPath(); mp.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke();
-      if (S.dp >= 1) {
-        g.textAlign = "left"; g.font = `${10.5 * D}px Inter, sans-serif`;
-        g.fillStyle = "#a5a9ff"; g.fillText(S.tech ? "S-Learner" : "Our model", sx(0.55), sy(model(0.55)) + 15 * D);
-        g.fillStyle = "#5d626b"; g.fillText("Random", sx(0.7), sy(0.7) + 14 * D);
-        g.fillStyle = "#ededef"; g.beginPath(); g.arc(sx(0.2), sy(model(0.2)), 3.5 * D, 0, 7); g.fill();
-        g.font = `500 ${11 * D}px Inter, sans-serif`;
-        g.fillText(S.tech ? `uplift share ${at20}% @ 20%` : `Top 20% → ${at20}% of extra visits`, sx(0.2) + 8 * D, sy(model(0.2)) + 4 * D);
-        if (S.selX !== null) { g.fillStyle = "#fbbf24"; g.beginPath(); g.arc(sx(S.selX), sy(model(S.selX)), 4.5 * D, 0, 7); g.fill(); }
+
+    // target values for the profit view at the current price
+    const profitTargets = () => {
+      const model = [0], rand = [0];
+      const all = profitAt(curves.s_learner, 1, S.price, assumptions).profit;
+      for (let i = 1; i <= N; i++) {
+        model.push(profitAt(curves.s_learner, i / N, S.price, assumptions).profit);
+        rand.push(all * (i / N));
       }
-      if (S.hov !== null) {
-        const v = Math.max(0.01, S.hov);
-        g.strokeStyle = "#33363c"; g.beginPath(); g.moveTo(sx(v), T); g.lineTo(sx(v), h - B); g.stroke();
-        g.fillStyle = "#a5a9ff"; g.beginPath(); g.arc(sx(v), sy(model(v)), 4 * D, 0, 7); g.fill();
-        const txt = `Top ${Math.round(v * 100)}% → ${Math.round(model(v) * 100)}%`;
-        g.font = `500 ${11.5 * D}px Inter, sans-serif`;
-        const tw = g.measureText(txt).width + 14 * D, x0 = Math.min(Math.max(sx(v) - tw / 2, L), w - R - tw);
-        g.fillStyle = "#16171a"; g.strokeStyle = "#2a2c31"; g.beginPath(); g.roundRect(x0, T, tw, 22 * D, 6 * D); g.fill(); g.stroke();
-        g.fillStyle = "#ededef"; g.textAlign = "left"; g.fillText(txt, x0 + 7 * D, T + 15 * D);
+      return { model, rand };
+    };
+
+    const line = (pts, color, width, dash) => {
+      g.setLineDash(dash || []); g.strokeStyle = color; g.lineWidth = width * D;
+      g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke(); g.setLineDash([]);
+    };
+    const tooltip = (x, txt, L, R, T, w) => {
+      g.font = `500 ${11.5 * D}px Inter, sans-serif`;
+      const tw = g.measureText(txt).width + 14 * D, x0 = Math.min(Math.max(x - tw / 2, L), w - R - tw);
+      g.fillStyle = "#16171a"; g.strokeStyle = "#2a2c31"; g.beginPath(); g.roundRect(x0, T, tw, 22 * D, 6 * D); g.fill(); g.stroke();
+      g.fillStyle = "#ededef"; g.textAlign = "left"; g.fillText(txt, x0 + 7 * D, T + 15 * D);
+    };
+
+    const draw = () => {
+      const w = c.width, h = c.height, L = 46 * D, R = 12 * D, T = 10 * D, B = 22 * D;
+      const sx = (v) => L + v * (w - L - R);
+      g.clearRect(0, 0, w, h);
+      S.dp = Math.min(1, S.dp + 0.025);
+      const n = Math.max(1, Math.floor(N * S.dp));
+      g.font = `${10.5 * D}px Inter, sans-serif`; g.lineWidth = D;
+      // x axis labels
+      g.fillStyle = "#5d626b";
+      [0, 0.5, 1].forEach((v) => { g.textAlign = v === 0 ? "left" : v === 1 ? "right" : "center"; g.fillText(`${v * 100}%${v === 1 ? " of people" : ""}`, sx(v), h - 5 * D); });
+
+      if (S.view === "visits") {
+        const sy = (v) => T + (1 - v) * (h - T - B);
+        [0, 0.5, 1].forEach((v) => {
+          g.strokeStyle = "#1c1d20"; g.beginPath(); g.moveTo(L, sy(v)); g.lineTo(w - R, sy(v)); g.stroke();
+          g.fillStyle = "#5d626b"; g.textAlign = "right"; g.fillText(`${v * 100}%`, L - 6 * D, sy(v) + 3.5 * D);
+        });
+        const pts = (f) => { const a = [[sx(0), sy(0)]]; for (let i = 1; i <= n; i++) a.push([sx(i / N), sy(f(i / N))]); return a; };
+        const mp = pts(visitsModel);
+        const gr = g.createLinearGradient(0, T, 0, h - B);
+        gr.addColorStop(0, "rgba(124,131,255,.28)"); gr.addColorStop(1, "rgba(124,131,255,0)");
+        g.fillStyle = gr; g.beginPath(); mp.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+        g.lineTo(sx(n / N), sy(0)); g.closePath(); g.fill();
+        line([[sx(0), sy(0)], [sx(S.dp), sy(S.dp)]], "#33363c", 1.2, [4 * D, 4 * D]);
+        line(pts(visitsAct), "#4a4e57", 1.3);
+        line(mp, "#a5a9ff", 2.2);
+        if (S.dp >= 1) {
+          g.textAlign = "left"; g.font = `${10.5 * D}px Inter, sans-serif`;
+          g.fillStyle = "#a5a9ff"; g.fillText(S.tech ? "S-Learner" : "Our model", sx(0.55), sy(visitsModel(0.55)) + 15 * D);
+          g.fillStyle = "#5d626b"; g.fillText("Random", sx(0.7), sy(0.7) + 14 * D);
+          g.fillStyle = "#ededef"; g.beginPath(); g.arc(sx(0.2), sy(visitsModel(0.2)), 3.5 * D, 0, 7); g.fill();
+          g.font = `500 ${11 * D}px Inter, sans-serif`;
+          g.fillText(S.tech ? `uplift share ${at20}% @ 20%` : `Top 20% → ${at20}% of extra visits`, sx(0.2) + 8 * D, sy(visitsModel(0.2)) + 4 * D);
+          if (S.selX !== null) { g.fillStyle = "#fbbf24"; g.beginPath(); g.arc(sx(S.selX), sy(visitsModel(S.selX)), 4.5 * D, 0, 7); g.fill(); }
+        }
+        if (S.hov !== null) {
+          const v = Math.max(0.01, S.hov);
+          g.strokeStyle = "#33363c"; g.beginPath(); g.moveTo(sx(v), T); g.lineTo(sx(v), h - B); g.stroke();
+          g.fillStyle = "#a5a9ff"; g.beginPath(); g.arc(sx(v), sy(visitsModel(v)), 4 * D, 0, 7); g.fill();
+          tooltip(sx(v), `Top ${Math.round(v * 100)}% → ${Math.round(visitsModel(v) * 100)}%`, L, R, T, w);
+        }
+      } else {
+        // profit view: lines glide to the new shape when the price changes
+        const tgt = profitTargets();
+        if (!S.disp) S.disp = { model: tgt.model.slice(), rand: tgt.rand.slice() };
+        for (let i = 0; i <= N; i++) {
+          S.disp.model[i] += (tgt.model[i] - S.disp.model[i]) * 0.12;
+          S.disp.rand[i] += (tgt.rand[i] - S.disp.rand[i]) * 0.12;
+        }
+        const vals = [...tgt.model, ...tgt.rand, 0];
+        const pad = (Math.max(...vals) - Math.min(...vals)) * 0.08 || 1000;
+        const tRange = [Math.min(...vals) - pad, Math.max(...vals) + pad];
+        if (!S.range) S.range = tRange.slice();
+        S.range[0] += (tRange[0] - S.range[0]) * 0.12; S.range[1] += (tRange[1] - S.range[1]) * 0.12;
+        const [lo, hi] = S.range;
+        const sy = (v) => T + (1 - (v - lo) / (hi - lo)) * (h - T - B);
+        // grid: three nice ticks
+        const step = niceStep(hi - lo);
+        for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
+          g.strokeStyle = "#1c1d20"; g.beginPath(); g.moveTo(L, sy(v)); g.lineTo(w - R, sy(v)); g.stroke();
+          g.fillStyle = "#5d626b"; g.textAlign = "right"; g.fillText(fmtRupeesK(v), L - 6 * D, sy(v) + 3.5 * D);
+        }
+        // break-even line
+        g.strokeStyle = "#5d626b"; g.lineWidth = 1.2 * D; g.beginPath(); g.moveTo(L, sy(0)); g.lineTo(w - R, sy(0)); g.stroke();
+        g.fillStyle = "#8a8f98"; g.textAlign = "right"; g.font = `${10.5 * D}px Inter, sans-serif`;
+        g.fillText(S.tech ? "break-even (profit = 0)" : "break-even", w - R, sy(0) - 5 * D);
+        const pts = (arr) => { const a = []; for (let i = 0; i <= n; i++) a.push([sx(i / N), sy(arr[i])]); return a; };
+        const mp = pts(S.disp.model);
+        const gr = g.createLinearGradient(0, T, 0, h - B);
+        gr.addColorStop(0, "rgba(124,131,255,.22)"); gr.addColorStop(1, "rgba(124,131,255,0)");
+        g.fillStyle = gr; g.beginPath(); mp.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+        g.lineTo(sx(n / N), sy(0)); g.lineTo(sx(0), sy(0)); g.closePath(); g.fill();
+        line(pts(S.disp.rand), "#33363c", 1.2, [4 * D, 4 * D]);
+        line(mp, "#a5a9ff", 2.2);
+        if (S.dp >= 1) {
+          let bi = 1;
+          for (let i = 1; i <= N; i++) if (tgt.model[i] > tgt.model[bi]) bi = i;
+          // If the recommended share earns within 2% (or ₹500) of the curve's peak, call it the best:
+          // the peak is noisy, and the decision rule (Step 9 bootstrap) prefers the recommendation.
+          const pi = S.selX === null ? null : Math.round(S.selX * N);
+          const tol = Math.max(0.02 * Math.abs(tgt.model[bi]), 500);
+          const nearTie = pi !== null && tgt.model[bi] - tgt.model[pi] <= tol;
+          if (nearTie) bi = pi;
+          const bx = bi / N, by = S.disp.model[bi];
+          g.font = `500 ${11 * D}px Inter, sans-serif`;
+          if (tgt.model[bi] > 0) {
+            g.fillStyle = "#4ade80"; g.beginPath(); g.arc(sx(bx), sy(by), 4.5 * D, 0, 7); g.fill();
+            g.textAlign = bx > 0.75 ? "right" : "left";
+            const simple = bi === N ? "Best: show everyone" : `Best: top ${bi}%`;
+            g.fillText(S.tech ? `${nearTie ? "≈ argmax" : "argmax"} ${bi}%: ${fmtRupeesK(tgt.model[bi])}` : simple, sx(bx) + (bx > 0.75 ? -8 : 8) * D, sy(by) - 8 * D);
+          } else {
+            g.fillStyle = "#f87171"; g.textAlign = "center";
+            g.fillText(S.tech ? "max profit < 0 at every share" : "No share is profitable", (L + w - R) / 2, sy(0) + 18 * D);
+          }
+          if (S.selX !== null) {
+            const si = Math.round(S.selX * N);
+            g.fillStyle = "#fbbf24"; g.beginPath(); g.arc(sx(S.selX), sy(S.disp.model[si]), 4 * D, 0, 7); g.fill();
+          }
+          g.textAlign = "left"; g.font = `${10.5 * D}px Inter, sans-serif`;
+          g.fillStyle = "#5d626b"; g.fillText("Random", sx(0.62), sy(S.disp.rand[62]) + 14 * D);
+        }
+        if (S.hov !== null) {
+          const v = Math.max(0.01, S.hov), i = Math.round(v * N);
+          g.strokeStyle = "#33363c"; g.lineWidth = D; g.beginPath(); g.moveTo(sx(v), T); g.lineTo(sx(v), h - B); g.stroke();
+          g.fillStyle = "#a5a9ff"; g.beginPath(); g.arc(sx(i / N), sy(S.disp.model[i]), 4 * D, 0, 7); g.fill();
+          tooltip(sx(v), `Top ${i}% → ${fmtRupeesK(tgt.model[i])}`, L, R, T, w);
+        }
       }
       raf = requestAnimationFrame(draw);
     };
     draw();
     return () => { cancelAnimationFrame(raf); ro.disconnect(); c.removeEventListener("pointermove", move); c.removeEventListener("pointerleave", leave); };
-  }, [curves]);
+  }, [curves, assumptions]);
 
   const m = models.s_learner, b = models.activity;
   return (
     <section className="card" aria-label="Who to target">
-      <Swap as="div" className="lbl" s="Who to target" t="Qini curve (test set)" />
-      <Swap as="div" className="one tight" s="Show ads to the most responsive people first"
-        t={`S-Learner ${m.qini.toFixed(3)} [${m.qini_ci[0].toFixed(3)}, ${m.qini_ci[1].toFixed(3)}] · activity ${b.qini.toFixed(3)}`} />
-      <div className="chart-box"><canvas ref={ref} role="img" aria-label="Share of extra visits captured by targeting share" /></div>
+      <div className="chart-head">
+        <div>
+          {view === "visits" ? (
+            <>
+              <Swap as="div" className="lbl" s="Who to target" t="Qini curve (test set)" />
+              <Swap as="div" className="one tight" s="Show ads to the most responsive people first"
+                t={`S-Learner ${m.qini.toFixed(3)} [${m.qini_ci[0].toFixed(3)}, ${m.qini_ci[1].toFixed(3)}] · activity ${b.qini.toFixed(3)}`} />
+            </>
+          ) : (
+            <>
+              <Swap as="div" className="lbl" s="Profit by how many see ads" t={`Profit curve at CPM ${fmtPrice(price)}`} />
+              <div className="one tight" key={`p${tech}${price}`}>
+                {tech ? `Profit per ${(assumptions.population / 1e6).toFixed(0)}M users · S-Learner ranking · visit value ₹${assumptions.visit_value}` : `Per 1M people, at ${fmtPrice(price)} per ad`}
+              </div>
+            </>
+          )}
+        </div>
+        <div className="seg" role="tablist" aria-label="Chart view">
+          <button role="tab" aria-selected={view === "visits"} className={view === "visits" ? "on" : ""} onClick={() => setView("visits")}>Extra visits</button>
+          <button role="tab" aria-selected={view === "profit"} className={view === "profit" ? "on" : ""} onClick={() => setView("profit")}>Profit</button>
+        </div>
+      </div>
+      <div className="chart-box"><canvas ref={ref} role="img" aria-label={view === "visits" ? "Share of extra visits captured by targeting share" : "Profit by targeting share at the selected ad price"} /></div>
     </section>
   );
 }
