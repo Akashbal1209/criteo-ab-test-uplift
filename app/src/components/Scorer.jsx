@@ -2,11 +2,12 @@
 import { useEffect, useMemo, useState } from "react";
 import Swap from "./Swap.jsx";
 import { scoreUsers } from "../lib/scorer.js";
-import { fmtPrice, percentileOfValue, valueAtPercentile } from "../lib/metrics.js";
+import { fmtPP, fmtPrice, percentileOfValue, valueAtPercentile } from "../lib/metrics.js";
 import { useTech } from "../tech.js";
 
 const perThousand = (u) => {
   const v = u * 1000;
+  if (Math.abs(v) < 0.05) return "≈ 0 / 1,000";
   const txt = Math.abs(v) < 10 ? Math.abs(v).toFixed(1) : Math.round(Math.abs(v)).toString();
   return `${v < 0 ? "−" : "+"}${txt} / 1,000`;
 };
@@ -83,7 +84,7 @@ export default function Scorer({ scorer, pol, price }) {
             <>
               <Swap as="div" className="lbl" s="Extra visitors per 1,000 like them" t="Predicted uplift τ(x)" />
               <div className="big res-num" key={tech ? "t" : "s"}>
-                {tech ? res.uplift.toFixed(4) : perThousand(res.uplift)}
+                {tech ? fmtPP(res.uplift, 3) : perThousand(res.uplift)}
               </div>
               <div className="one" key={`r${tech}`}>
                 {tech ? `p(ad) ${res.pAd.toFixed(3)} · p(no ad) ${res.pNoAd.toFixed(3)} · percentile ${pct.toFixed(0)}` : `More responsive than ${Math.round(pct)}% of people`}
