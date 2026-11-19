@@ -104,6 +104,7 @@ button { font-family: inherit; }
 }
 .btn:hover { border-color: #3a3d44; background: #141518; }
 .btn.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.btn.primary:hover { background: var(--fg); }
 .scorer-body { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 22px; margin-top: 14px; }
 .sliders { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 16px; align-content: start; }
 .sliders .one { grid-column: 1 / -1; margin-top: 2px; }

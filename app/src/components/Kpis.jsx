@@ -1,6 +1,7 @@
 import Swap from "./Swap.jsx";
 import { fmtPP, fmtPct, fmtRupeesK, fmtPrice } from "../lib/metrics.js";
 import { useTech } from "../tech.js";
+import useAnimatedNumber from "../lib/useAnimatedNumber.js";
 
 function Kpi({ label, value, line, tone }) {
   return (
@@ -15,6 +16,7 @@ function Kpi({ label, value, line, tone }) {
 export default function Kpis({ e, profit, price }) {
   const tech = useTech();
   const c = e.cace;
+  const shownProfit = useAnimatedNumber(profit);
   return (
     <section className="k4" aria-label="Key numbers">
       <Kpi label={{ s: "Saw an ad", t: "Exposure rate" }}
@@ -28,7 +30,7 @@ export default function Kpis({ e, profit, price }) {
         line={{ s: "Too high: they were already active", t: `Selection bias = ${(e.selection_bias * 100).toFixed(1)} pp` }} />
       <div className="card kpi">
         <Swap as="div" className="lbl" s="Profit" t="Profit per 1M users" />
-        <div className="big">{fmtRupeesK(profit)}</div>
+        <div className="big">{fmtRupeesK(shownProfit)}</div>
         <div className="one" key={tech ? "t" : "s"}>
           {tech ? `CPM ${fmtPrice(price)} · S-Learner ranking` : `Per 1M people, at ${fmtPrice(price)} per ad`}
         </div>

@@ -1,11 +1,15 @@
 import Swap from "./Swap.jsx";
 import { fmtPrice } from "../lib/metrics.js";
 import { useTech } from "../tech.js";
+import useAnimatedNumber from "../lib/useAnimatedNumber.js";
 
 export default function Decision({ prices, price, setPrice, pol, result, best, visitValue }) {
   const tech = useTech();
   const x = pol.x;
-  const roi = result.spend > 0 ? result.profit / result.spend : null;
+  const roiRaw = result.spend > 0 ? result.profit / result.spend : null;
+  // animate the return too; when ads are paused it settles on 0 and shows "—"
+  const roiAnim = useAnimatedNumber(roiRaw ?? 0);
+  const roi = roiRaw === null ? null : roiAnim;
   return (
     <section className="card" aria-label="Decision">
       <Swap as="div" className="lbl" s="Ad price" t="Cost per impression" />

@@ -18,6 +18,8 @@ export default function Scorer({ scorer, pol, price }) {
   const [res, setRes] = useState(null);
   const [presets, setPresets] = useState(null);
   const [error, setError] = useState(null);
+  // which button is highlighted; null once the user moves a slider (a custom person)
+  const [active, setActive] = useState(null);
 
   // Score the sample once to build presets at low / middle / high uplift.
   useEffect(() => {
@@ -28,6 +30,7 @@ export default function Scorer({ scorer, pol, price }) {
         const p = { "Rarely responds": pick(0.1), Typical: pick(0.5), "Very responsive": pick(0.97) };
         setPresets(p);
         setValues(p.Typical);
+        setActive("Typical");
       })
       .catch((e) => setError(String(e)));
   }, [sample]);
@@ -52,8 +55,16 @@ export default function Scorer({ scorer, pol, price }) {
           <Swap as="div" className="one tight" s="Pick a person or move the sliders" t="τ(x) = P(visit | x, ad) − P(visit | x, no ad)" />
         </div>
         <div className="btns">
-          <button className="btn primary" onClick={() => setValues(sample[Math.floor(Math.random() * sample.length)])}>Random person</button>
-          {presets && Object.entries(presets).map(([k, v]) => <button key={k} className="btn" onClick={() => setValues(v)}>{k}</button>)}
+          <button className={`btn ${active === "Random person" ? "primary" : ""}`} aria-pressed={active === "Random person"}
+            onClick={() => { setValues(sample[Math.floor(Math.random() * sample.length)]); setActive("Random person"); }}>
+            Random person
+          </button>
+          {presets && Object.entries(presets).map(([k, v]) => (
+            <button key={k} className={`btn ${active === k ? "primary" : ""}`} aria-pressed={active === k}
+              onClick={() => { setValues(v); setActive(k); }}>
+              {k}
+            </button>
+          ))}
         </div>
       </div>
       <div className="scorer-body">
@@ -62,7 +73,7 @@ export default function Scorer({ scorer, pol, price }) {
             <label key={f} className="slider">
               <span className="slider-head"><span>{f}</span><span className="mono">{tech ? values[i].toFixed(3) : `p${Math.round(featPct[i])}`}</span></span>
               <input type="range" min="0" max="100" step="1" value={Math.round(featPct[i])}
-                onChange={(e) => { const next = values.slice(); next[i] = valueAtPercentile(fq[f], +e.target.value); setValues(next); }} />
+                onChange={(e) => { const next = values.slice(); next[i] = valueAtPercentile(fq[f], +e.target.value); setValues(next); setActive(null); }} />
             </label>
           ))}
           <Swap as="div" className="one" s="Traits are anonymized, so each slider is a percentile" t="Slider = feature percentile; value interpolated from the 10% sample" />
