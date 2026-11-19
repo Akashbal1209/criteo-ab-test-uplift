@@ -8,7 +8,7 @@ An end-to-end analysis of a randomized **A/B test** on the [Criteo uplift datase
 
 The project goes from experiment checks (SRM, covariate balance, power) through causal estimates (ITT, CACE) to uplift models (S/T/X-learners) and an ROI decision. A web dashboard presents the results so that non-technical, business, and technical readers can all follow them.
 
-> **Live dashboard:** deployed on Render (link added after deployment). See [Web app](#web-app).
+> **Live dashboard:** https://criteo-uplift-dashboard.onrender.com — see [Web app](#web-app).
 
 ---
 
