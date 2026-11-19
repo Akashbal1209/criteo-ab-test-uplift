@@ -1,0 +1,21 @@
+# Raw and cached datasets (300+ MB) live only locally; root-level folder only,
+# so app/public/data (the small JSON the web app needs) is still committed.
+/data/
+
+# Experiment tracking
+mlruns/
+mlflow.db
+mlartifacts/
+
+# Large model artifacts
+models/*.parquet
+models/*.pkl
+
+# Python
+__pycache__/
+.ipynb_checkpoints/
+
+# Web app
+app/node_modules/
+app/dist/
+app/public/ort/

@@ -1,0 +1,20 @@
+# Render Blueprint: deploys the dashboard in app/ as a free static site.
+# The model runs in the visitor's browser (ONNX), so no backend server is needed.
+services:
+  - type: web
+    name: criteo-uplift-dashboard
+    runtime: static
+    rootDir: app
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    headers:
+      - path: /ort/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /model/*
+        name: Cache-Control
+        value: public, max-age=86400
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
